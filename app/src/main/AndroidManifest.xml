@@ -24,7 +24,7 @@
         <activity android:name=".MenuActivity"/>
         <activity android:name=".BoatActivity"/>
         <activity android:name=".BreadBoardView"/>
-
+        <activity android:name=".ComponentListActivity" />
     </application>
 
 </manifest>
