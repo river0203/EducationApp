@@ -21,7 +21,7 @@ public class ComponentListActivity extends AppCompatActivity {
         setContentView(R.layout.activity_component_list);
 
         // 2. 보여줄 부품 데이터 목록을 만듭니다.
-        String[] components = {"건전지", "건전지 홀더", "스위치", "날개"};
+        String[] components = {"건전지", "건전지 홀더", "스위치", "날개", "전선"};
 
         // 3. XML에 있는 ListView를 찾습니다.
         ListView listView = findViewById(R.id.componentListView);
