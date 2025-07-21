@@ -52,9 +52,8 @@ public class BoatActivity extends AppCompatActivity {
                     breadboardView.enterWireDrawingMode();
                     Toast.makeText(this, "전선 그리기 모드입니다. 홀을 터치하고 드래그하세요.", Toast.LENGTH_LONG).show();
                 } else {
-                    // 다른 부품이 선택된 경우, 부품을 추가
-                    breadboardView.addComponent(componentName);
-                    Toast.makeText(this, componentName + " 추가됨", Toast.LENGTH_SHORT).show();
+                    // 다른 부품이 선택된 경우, 부품 배치 모드로 진입
+                    breadboardView.startPlacingComponent(componentName);
                 }
             }
         }

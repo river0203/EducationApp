@@ -12,10 +12,11 @@ import android.graphics.RectF;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.Toast;
+
 import androidx.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 
 public class BreadBoardView extends View {
 
@@ -56,17 +57,18 @@ public class BreadBoardView extends View {
     private static final int DRAG = 1;
     private static final int RESIZE = 2;
     private static final int DRAW_WIRE = 3; // 전선 그리기 모드
+    private static final int PLACE = 4;     // 부품 배치 모드
     private int mode = NONE;
 
     private Bitmap originalBitmap;
     private Bitmap scaledBitmap;
     private List<Component> placedComponents = new ArrayList<>();
-    private List<Wire> placedWires = new ArrayList<>(); // 그려진 전선을 저장할 리스트
+    private List<Wire> placedWires = new ArrayList<>();
     private Component selectedComponent = null;
+    private Component placingComponent = null; // 현재 배치(드래그) 중인 부품
 
     private Paint selectionPaint;
-    private Paint wirePaint; // 현재 그리는 전선에 사용할 Paint
-    private Random random = new Random();
+    private Paint wirePaint;
 
     // 현재 그리고 있는 전선 정보
     private Wire currentDrawingWire = null;
@@ -100,21 +102,18 @@ public class BreadBoardView extends View {
         selectionPaint.setStyle(Paint.Style.STROKE);
         selectionPaint.setStrokeWidth(5f);
 
-        // 기본 전선 Paint 초기화
         wirePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         wirePaint.setColor(Color.RED);
         wirePaint.setStrokeWidth(5f);
         wirePaint.setStrokeCap(Paint.Cap.ROUND);
     }
 
-    /**
-     * 외부에서 전선 그리기 모드로 전환하기 위해 호출하는 메서드
-     */
     public void enterWireDrawingMode() {
         if (selectedComponent != null) {
             selectedComponent.isSelected = false;
             selectedComponent = null;
         }
+        placingComponent = null; // 부품 배치 중이었다면 취소
         this.mode = DRAW_WIRE;
         invalidate();
     }
@@ -132,8 +131,26 @@ public class BreadBoardView extends View {
         }
     }
 
-    public void addComponent(String componentName) {
-        if (scaledBitmap == null) return;
+    public void startPlacingComponent(String componentName) {
+        if (selectedComponent != null) {
+            selectedComponent.isSelected = false;
+            selectedComponent = null;
+        }
+        currentDrawingWire = null;
+        mode = NONE;
+
+        placingComponent = createComponent(componentName);
+
+        if (placingComponent != null) {
+            mode = PLACE;
+            Toast.makeText(getContext(), "부품을 드래그하여 원하는 위치에 놓으세요.", Toast.LENGTH_LONG).show();
+            invalidate();
+        }
+    }
+
+    private Component createComponent(String componentName) {
+        if (scaledBitmap == null) return null;
+
         int imageResId = 0;
         if (componentName.contains("건전지")) imageResId = R.drawable.charger;
         else if (componentName.contains("건전지 홀더")) imageResId = R.drawable.chargerholder;
@@ -143,25 +160,25 @@ public class BreadBoardView extends View {
         if (imageResId != 0) {
             Bitmap componentBitmap = BitmapFactory.decodeResource(getResources(), imageResId);
             Bitmap scaledComponentBitmap = Bitmap.createScaledBitmap(componentBitmap, 150, 150, true);
-            Point gridPos = new Point(random.nextInt(HORIZONTAL_HOLES), random.nextInt(VERTICAL_HOLES));
-            Point pixelPos = getPixelForGridPoint(gridPos.x, gridPos.y);
-            float halfW = scaledComponentBitmap.getWidth() / 2f;
-            float halfH = scaledComponentBitmap.getHeight() / 2f;
-            RectF bounds = new RectF(pixelPos.x - halfW, pixelPos.y - halfH, pixelPos.x + halfW, pixelPos.y + halfH);
-            placedComponents.add(new Component(imageResId, componentName, scaledComponentBitmap, bounds));
-            invalidate();
+            RectF bounds = new RectF(0, 0, scaledComponentBitmap.getWidth(), scaledComponentBitmap.getHeight());
+            return new Component(imageResId, componentName, scaledComponentBitmap, bounds);
         }
+        return null;
     }
+
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        // 전선 그리기 모드일 때의 터치 로직을 최우선으로 처리
         if (mode == DRAW_WIRE) {
             handleWireDrawing(event);
             return true;
         }
 
-        // 부품 이동/크기 조절 로직
+        if (mode == PLACE) {
+            handlePlacement(event);
+            return true;
+        }
+
         switch (event.getAction() & MotionEvent.ACTION_MASK) {
             case MotionEvent.ACTION_DOWN:
                 mode = DRAG;
@@ -209,6 +226,16 @@ public class BreadBoardView extends View {
                 break;
 
             case MotionEvent.ACTION_UP:
+                if (mode == DRAG && selectedComponent != null) {
+                    Point gridPoint = mapPixelToGridPoint(selectedComponent.bounds.centerX(), selectedComponent.bounds.centerY());
+                    if (gridPoint != null) {
+                        Point pixelPos = getPixelForGridPoint(gridPoint.x, gridPoint.y);
+                        selectedComponent.bounds.offsetTo(pixelPos.x - selectedComponent.bounds.width() / 2, pixelPos.y - selectedComponent.bounds.height() / 2);
+                        Toast.makeText(getContext(), selectedComponent.name + " 위치 조정됨", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(getContext(), "부품은 브레드보드 위에 있어야 합니다.", Toast.LENGTH_SHORT).show();
+                    }
+                }
             case MotionEvent.ACTION_POINTER_UP:
                 mode = NONE;
                 break;
@@ -218,8 +245,36 @@ public class BreadBoardView extends View {
         return true;
     }
 
+    private void handlePlacement(MotionEvent event) {
+        float x = event.getX();
+        float y = event.getY();
+
+        if (placingComponent == null) {
+            mode = NONE;
+            return;
+        }
+
+        placingComponent.bounds.offsetTo(x - placingComponent.bounds.width() / 2, y - placingComponent.bounds.height() / 2);
+
+        if (event.getAction() == MotionEvent.ACTION_UP) {
+            Point gridPoint = mapPixelToGridPoint(x, y);
+            if (gridPoint != null) {
+                Point pixelPos = getPixelForGridPoint(gridPoint.x, gridPoint.y);
+                placingComponent.bounds.offsetTo(pixelPos.x - placingComponent.bounds.width() / 2, pixelPos.y - placingComponent.bounds.height() / 2);
+                placedComponents.add(placingComponent);
+                Toast.makeText(getContext(), placingComponent.name + " 장착 완료", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(getContext(), "브레드보드 위에 배치해야 합니다.", Toast.LENGTH_SHORT).show();
+            }
+            placingComponent = null;
+            mode = NONE;
+        }
+
+        invalidate();
+    }
+
     /**
-     * 전선 그리기를 처리하는 별도 메서드
+     * 전선 그리기를 처리하는 메서드 (수정됨)
      */
     private void handleWireDrawing(MotionEvent event) {
         float x = event.getX();
@@ -240,15 +295,25 @@ public class BreadBoardView extends View {
                 }
                 break;
             case MotionEvent.ACTION_UP:
+                // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+                // 이 부분이 수정되었습니다.
+                // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
                 if (currentDrawingWire != null) {
                     Point endGridPoint = mapPixelToGridPoint(x, y);
+                    // 시작점과 끝점이 다르고, 끝점이 유효한 위치일 때만 전선을 추가
                     if (endGridPoint != null && !currentDrawingWire.startGridPoint.equals(endGridPoint)) {
                         currentDrawingWire.endGridPoint = endGridPoint;
                         placedWires.add(currentDrawingWire);
+                        Toast.makeText(getContext(), "전선 추가됨. 계속해서 그리세요.", Toast.LENGTH_SHORT).show();
                     }
+                    // 현재 그리던 전선 정보를 초기화 (다음 전선을 위해)
                     currentDrawingWire = null;
-                    mode = NONE; // 그리기 종료 후 기본 모드로 전환
+
+                    // mode = NONE; // 이 줄을 제거(또는 주석 처리)하여 전선 그리기 모드를 유지합니다.
                 }
+                // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+                // 여기까지가 수정된 부분입니다.
+                // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
                 break;
         }
         invalidate();
@@ -301,7 +366,6 @@ public class BreadBoardView extends View {
             canvas.drawBitmap(scaledBitmap, bitmapDrawX, bitmapDrawY, null);
         }
 
-        // 배치된 부품들을 그립니다.
         for (Component component : placedComponents) {
             canvas.drawBitmap(component.bitmap, null, component.bounds, null);
             if (component.isSelected) {
@@ -309,17 +373,19 @@ public class BreadBoardView extends View {
             }
         }
 
-        // 저장된 모든 전선을 그립니다.
         for (Wire wire : placedWires) {
             Point start = getPixelForGridPoint(wire.startGridPoint.x, wire.startGridPoint.y);
             Point end = getPixelForGridPoint(wire.endGridPoint.x, wire.endGridPoint.y);
             canvas.drawLine(start.x, start.y, end.x, end.y, wire.paint);
         }
 
-        // 현재 사용자가 그리고 있는 전선을 실시간으로 그립니다.
         if (currentDrawingWire != null) {
             Point start = getPixelForGridPoint(currentDrawingWire.startGridPoint.x, currentDrawingWire.startGridPoint.y);
             canvas.drawLine(start.x, start.y, currentWireEndPoint.x, currentWireEndPoint.y, wirePaint);
+        }
+
+        if (placingComponent != null) {
+            canvas.drawBitmap(placingComponent.bitmap, null, placingComponent.bounds, null);
         }
     }
 }
