@@ -60,6 +60,9 @@ public class BreadBoardView extends View {
     private static final int PLACE = 4;     // 부품 배치 모드
     private int mode = NONE;
 
+    // 조립 성공 여부 확인을 위한 플래그
+    private boolean assemblySuccessNotified = false;
+
     private Bitmap originalBitmap;
     private Bitmap scaledBitmap;
     private List<Component> placedComponents = new ArrayList<>();
@@ -152,10 +155,20 @@ public class BreadBoardView extends View {
         if (scaledBitmap == null) return null;
 
         int imageResId = 0;
-        if (componentName.contains("건전지")) imageResId = R.drawable.charger;
-        else if (componentName.contains("건전지 홀더")) imageResId = R.drawable.chargerholder;
-        else if (componentName.contains("스위치")) imageResId = R.drawable.dipswitch;
-        else if (componentName.contains("날개")) imageResId = R.drawable.wing;
+
+        // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+        // 오류 수정을 위해 조건문 순서 변경
+        // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+        if (componentName.contains("건전지 홀더")) {
+            imageResId = R.drawable.chargerholder;
+        } else if (componentName.contains("건전지")) {
+            imageResId = R.drawable.charger;
+        } else if (componentName.contains("스위치")) {
+            imageResId = R.drawable.dipswitch;
+        } else if (componentName.contains("날개")) {
+            imageResId = R.drawable.wing;
+        }
+        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
         if (imageResId != 0) {
             Bitmap componentBitmap = BitmapFactory.decodeResource(getResources(), imageResId);
@@ -232,6 +245,7 @@ public class BreadBoardView extends View {
                         Point pixelPos = getPixelForGridPoint(gridPoint.x, gridPoint.y);
                         selectedComponent.bounds.offsetTo(pixelPos.x - selectedComponent.bounds.width() / 2, pixelPos.y - selectedComponent.bounds.height() / 2);
                         Toast.makeText(getContext(), selectedComponent.name + " 위치 조정됨", Toast.LENGTH_SHORT).show();
+                        checkAssemblySuccess();
                     } else {
                         Toast.makeText(getContext(), "부품은 브레드보드 위에 있어야 합니다.", Toast.LENGTH_SHORT).show();
                     }
@@ -263,6 +277,7 @@ public class BreadBoardView extends View {
                 placingComponent.bounds.offsetTo(pixelPos.x - placingComponent.bounds.width() / 2, pixelPos.y - placingComponent.bounds.height() / 2);
                 placedComponents.add(placingComponent);
                 Toast.makeText(getContext(), placingComponent.name + " 장착 완료", Toast.LENGTH_SHORT).show();
+                checkAssemblySuccess();
             } else {
                 Toast.makeText(getContext(), "브레드보드 위에 배치해야 합니다.", Toast.LENGTH_SHORT).show();
             }
@@ -273,9 +288,6 @@ public class BreadBoardView extends View {
         invalidate();
     }
 
-    /**
-     * 전선 그리기를 처리하는 메서드 (수정됨)
-     */
     private void handleWireDrawing(MotionEvent event) {
         float x = event.getX();
         float y = event.getY();
@@ -295,25 +307,16 @@ public class BreadBoardView extends View {
                 }
                 break;
             case MotionEvent.ACTION_UP:
-                // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
-                // 이 부분이 수정되었습니다.
-                // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
                 if (currentDrawingWire != null) {
                     Point endGridPoint = mapPixelToGridPoint(x, y);
-                    // 시작점과 끝점이 다르고, 끝점이 유효한 위치일 때만 전선을 추가
                     if (endGridPoint != null && !currentDrawingWire.startGridPoint.equals(endGridPoint)) {
                         currentDrawingWire.endGridPoint = endGridPoint;
                         placedWires.add(currentDrawingWire);
                         Toast.makeText(getContext(), "전선 추가됨. 계속해서 그리세요.", Toast.LENGTH_SHORT).show();
+                        checkAssemblySuccess();
                     }
-                    // 현재 그리던 전선 정보를 초기화 (다음 전선을 위해)
                     currentDrawingWire = null;
-
-                    // mode = NONE; // 이 줄을 제거(또는 주석 처리)하여 전선 그리기 모드를 유지합니다.
                 }
-                // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
-                // 여기까지가 수정된 부분입니다.
-                // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
                 break;
         }
         invalidate();
@@ -356,6 +359,39 @@ public class BreadBoardView extends View {
         int row = Math.round(relativeY * (VERTICAL_HOLES - 1));
 
         return new Point(col, row);
+    }
+
+    /**
+     * 필수 부품들이 모두 배치되었는지 확인하고, 성공 시 토스트 메시지를 표시하는 메서드
+     */
+    private void checkAssemblySuccess() {
+        // 이미 성공 메시지를 표시했다면 다시 확인하지 않음
+        if (assemblySuccessNotified) {
+            return;
+        }
+
+        boolean hasBatteryHolder = false;
+        boolean hasSwitch = false;
+        boolean hasMotor = false; // '날개'를 모터 부품으로 간주
+
+        for (Component c : placedComponents) {
+            if (c.name.contains("건전지 홀더")) {
+                hasBatteryHolder = true;
+            } else if (c.name.contains("스위치")) {
+                hasSwitch = true;
+            } else if (c.name.contains("날개")) { // '날개'를 모터로 가정
+                hasMotor = true;
+            }
+        }
+
+        // 전선이 하나 이상 배치되었는지 확인
+        boolean hasWires = !placedWires.isEmpty();
+
+        // 모든 조건이 충족되면 성공 메시지 표시
+        if (hasBatteryHolder && hasSwitch && hasMotor && hasWires) {
+            Toast.makeText(getContext(), "🎉 조립 성공!", Toast.LENGTH_LONG).show();
+            assemblySuccessNotified = true; // 성공 알림 플래그를 설정하여 중복 표시 방지
+        }
     }
 
     @Override
