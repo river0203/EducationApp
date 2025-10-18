@@ -27,6 +27,7 @@ public class BreadBoardView extends View {
         Bitmap bitmap;
         RectF bounds;
         boolean isSelected = false;
+        float rotation = 0f; // ★★★ 추가: 회전 각도 (도 단위)
 
         Component(int imageResId, String name, Bitmap bitmap, RectF bounds) {
             this.imageResId = imageResId;
@@ -82,6 +83,7 @@ public class BreadBoardView extends View {
     // 터치 이벤트 처리를 위한 변수
     private PointF lastTouch = new PointF();
     private float oldDist = 1f;
+    private float oldRotationAngle = 0f; // ★★★ 추가: 회전 계산을 위한 이전 각도
 
     // 그리드 관련 상수
     private static final float GRID_START_X_RATIO = 0.05f;
@@ -215,6 +217,10 @@ public class BreadBoardView extends View {
                     if (oldDist > 10f) {
                         mode = RESIZE;
                     }
+                    // ★★★ 추가: 회전 계산을 위한 초기 각도 저장
+                    if (event.getPointerCount() >= 2) {
+                        oldRotationAngle = rotationAngle(event);
+                    }
                 }
                 break;
 
@@ -225,6 +231,7 @@ public class BreadBoardView extends View {
                     selectedComponent.bounds.offset(dx, dy);
                     lastTouch.set(event.getX(), event.getY());
                 } else if (mode == RESIZE && selectedComponent != null && event.getPointerCount() >= 2) {
+                    // 크기 조절 로직
                     float newDist = spacing(event);
                     if (newDist > 10f) {
                         float scale = newDist / oldDist;
@@ -235,6 +242,15 @@ public class BreadBoardView extends View {
                         selectedComponent.bounds.set(centerX - newWidth / 2, centerY - newHeight / 2, centerX + newWidth / 2, centerY + newHeight / 2);
                     }
                     oldDist = newDist;
+
+                    // ★★★ 추가: 회전 로직
+                    float newRotationAngle = rotationAngle(event);
+                    float deltaRotation = newRotationAngle - oldRotationAngle;
+                    selectedComponent.rotation += deltaRotation;
+                    // 각도를 0~360 범위로 유지
+                    selectedComponent.rotation %= 360;
+                    if (selectedComponent.rotation < 0) selectedComponent.rotation += 360;
+                    oldRotationAngle = newRotationAngle;
                 }
                 break;
 
@@ -328,6 +344,14 @@ public class BreadBoardView extends View {
         return (float) Math.sqrt(x * x + y * y);
     }
 
+    // ★★★ 추가: 두 포인터 간의 각도를 계산하는 헬퍼 메서드
+    private float rotationAngle(MotionEvent event) {
+        double dx = event.getX(0) - event.getX(1);
+        double dy = event.getY(0) - event.getY(1);
+        // atan2는 y, x 순서로 인자를 받음. 반환값은 라디안이므로 도(degree)로 변환
+        return (float) Math.toDegrees(Math.atan2(dy, dx));
+    }
+
     private Point getPixelForGridPoint(int col, int row) {
         float gridPixelWidth = scaledBitmap.getWidth() * GRID_WIDTH_RATIO;
         float gridPixelHeight = scaledBitmap.getHeight() * GRID_HEIGHT_RATIO;
@@ -403,10 +427,20 @@ public class BreadBoardView extends View {
         }
 
         for (Component component : placedComponents) {
+            // ★★★ 부품 회전 로직 추가
+            canvas.save();
+            // 회전 각도와 회전 중심 (부품의 중앙) 설정
+            canvas.rotate(component.rotation, component.bounds.centerX(), component.bounds.centerY());
+
+            // 비트맵 그리기
             canvas.drawBitmap(component.bitmap, null, component.bounds, null);
+
+            // 선택 표시 그리기 (회전된 캔버스에 그려짐)
             if (component.isSelected) {
                 canvas.drawRect(component.bounds, selectionPaint);
             }
+
+            canvas.restore(); // 캔버스 회전 상태 복원
         }
 
         for (Wire wire : placedWires) {
@@ -421,6 +455,7 @@ public class BreadBoardView extends View {
         }
 
         if (placingComponent != null) {
+            // 배치 중인 부품은 기본 0도로 그림 (회전 기능은 배치 후 적용)
             canvas.drawBitmap(placingComponent.bitmap, null, placingComponent.bounds, null);
         }
     }
