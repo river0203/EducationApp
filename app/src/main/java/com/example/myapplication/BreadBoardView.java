@@ -123,6 +123,39 @@ public class BreadBoardView extends View {
         invalidate();
     }
 
+    // ★★★ 새로 추가한 메서드: 마지막으로 추가된 부품/전선 삭제 ★★★
+    public boolean deleteLastAddedItem() {
+        // 부품이 있다면 가장 마지막 부품 삭제
+        if (!placedComponents.isEmpty()) {
+            Component removedComponent = placedComponents.remove(placedComponents.size() - 1);
+            if (selectedComponent == removedComponent) {
+                selectedComponent = null; // 삭제된 부품이 선택된 상태였다면 해제
+            }
+            // 부품 삭제 후 부품 배치/전선 그리기 모드가 아니면 NONE 모드로
+            if (mode != PLACE && mode != DRAW_WIRE) {
+                mode = NONE;
+            }
+            Toast.makeText(getContext(), removedComponent.name + " 삭제됨", Toast.LENGTH_SHORT).show();
+            assemblySuccessNotified = false; // 재조립 확인을 위해 성공 플래그 초기화
+            invalidate();
+            return true;
+        }
+        // 부품이 없고 전선이 있다면 가장 마지막 전선 삭제
+        else if (!placedWires.isEmpty()) {
+            placedWires.remove(placedWires.size() - 1);
+            Toast.makeText(getContext(), "전선 삭제됨", Toast.LENGTH_SHORT).show();
+            assemblySuccessNotified = false; // 재조립 확인을 위해 성공 플래그 초기화
+            invalidate();
+            return true;
+        }
+        // 삭제할 항목이 없다면
+        else {
+            Toast.makeText(getContext(), "삭제할 부품이나 전선이 없습니다.", Toast.LENGTH_SHORT).show();
+            return false;
+        }
+    }
+
+
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);

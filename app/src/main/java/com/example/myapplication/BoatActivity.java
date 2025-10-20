@@ -11,6 +11,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 public class BoatActivity extends AppCompatActivity {
     private Button addComponentButton;
+    private Button deleteLastComponentButton; // ★★★ 추가: 삭제 버튼 필드
     private BreadBoardView breadboardView;
 
     private static final int PICK_COMPONENT_REQUEST = 1;
@@ -22,12 +23,25 @@ public class BoatActivity extends AppCompatActivity {
 
         breadboardView = findViewById(R.id.breadboardView);
         addComponentButton = findViewById(R.id.addComponentButton);
+        deleteLastComponentButton = findViewById(R.id.deleteLastComponentButton); // ★★★ 추가: 삭제 버튼 초기화
 
         if (addComponentButton != null) {
             addComponentButton.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     launchComponentPicker();
+                }
+            });
+        }
+
+        // ★★★ 추가: 삭제 버튼 클릭 리스너 설정
+        if (deleteLastComponentButton != null) {
+            deleteLastComponentButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (breadboardView != null) {
+                        breadboardView.deleteLastAddedItem();
+                    }
                 }
             });
         }
