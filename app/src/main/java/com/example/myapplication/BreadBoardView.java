@@ -177,7 +177,24 @@ public class BreadBoardView extends View {
         currentDrawingWire = null;
         mode = NONE;
 
-        placingComponent = createComponent(componentName);
+        int initialWidth = 150; // 기본 초기 너비
+        int initialHeight = 150; // 기본 초기 높이
+
+        // 부품 이름에 따라 초기 크기를 설정
+        if (componentName.contains("건전지")) {
+            // charger.png 이미지에 맞게 크기 설정 (예: 100x50)
+            initialWidth = 200;
+            initialHeight = 300;
+        }
+
+        if (componentName.contains("스위치")) {
+            // charger.png 이미지에 맞게 크기 설정 (예: 100x50)
+            initialWidth = 450;
+            initialHeight = 200;
+        }
+        // 다른 부품들도 필요하면 여기에 추가적인 크기 설정을 할 수 있습니다.
+
+        placingComponent = createComponent(componentName, initialWidth, initialHeight); // ★★★ 수정된 부분: 초기 크기 전달
 
         if (placingComponent != null) {
             mode = PLACE;
@@ -186,7 +203,8 @@ public class BreadBoardView extends View {
         }
     }
 
-    private Component createComponent(String componentName) {
+    // ★★★ 수정된 메서드: 초기 크기 인자 추가 ★★★
+    private Component createComponent(String componentName, int initialWidth, int initialHeight) {
         if (scaledBitmap == null) return null;
 
         int imageResId = 0;
@@ -202,12 +220,19 @@ public class BreadBoardView extends View {
             imageResId = R.drawable.dipswitch;
         } else if (componentName.contains("날개")) {
             imageResId = R.drawable.wing;
+        }else if (componentName.contains("모터")) {
+            imageResId = R.drawable.motor;
+        }else if (componentName.contains("on")) {
+            imageResId = R.drawable.on;
+        }else if (componentName.contains("off")) {
+            imageResId = R.drawable.off;
         }
         // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
         if (imageResId != 0) {
             Bitmap componentBitmap = BitmapFactory.decodeResource(getResources(), imageResId);
-            Bitmap scaledComponentBitmap = Bitmap.createScaledBitmap(componentBitmap, 150, 150, true);
+            // ★★★ 수정된 부분: 전달받은 initialWidth, initialHeight로 비트맵 크기 조정 ★★★
+            Bitmap scaledComponentBitmap = Bitmap.createScaledBitmap(componentBitmap, initialWidth, initialHeight, true);
             RectF bounds = new RectF(0, 0, scaledComponentBitmap.getWidth(), scaledComponentBitmap.getHeight());
             return new Component(imageResId, componentName, scaledComponentBitmap, bounds);
         }
